@@ -1,7 +1,7 @@
 using System;
-using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 public class Board : MonoBehaviour
@@ -21,6 +21,8 @@ public class Board : MonoBehaviour
 
     Tile startTile;
     Tile endTile;
+
+    bool swappingPieces = false;
 
     // Start is called before the first frame update
     void Start()
@@ -43,8 +45,8 @@ public class Board : MonoBehaviour
                 var selectedPiece = availablePieces[UnityEngine.Random.Range(0, availablePieces.Length)];
                 var o = Instantiate(selectedPiece, new Vector3(x, y, -5), Quaternion.identity);
                 o.transform.parent = transform;
-                Pieces[x,y] = o.GetComponent<Piece>();
-                Pieces[x,y].Setup(x, y, this);
+                Pieces[x, y] = o.GetComponent<Piece>();
+                Pieces[x, y].Setup(x, y, this);
             }
         }
     }
@@ -71,8 +73,8 @@ public class Board : MonoBehaviour
             {
                 var o = Instantiate(tileObject, new Vector3(x, y, -5), Quaternion.identity);
                 o.transform.parent = transform;
-                Tiles[x,y] = o.GetComponent<Tile>();
-                Tiles[x,y]?.Setup(x, y, this);
+                Tiles[x, y] = o.GetComponent<Tile>();
+                Tiles[x, y]?.Setup(x, y, this);
             }
         }
     }
@@ -89,15 +91,13 @@ public class Board : MonoBehaviour
 
     public void TileUp(Tile tile_)
     {
-        if (startTile != null && endTile != null && IsCloseTo(startTile, endTile) )
+        if (startTile != null && endTile != null && IsCloseTo(startTile, endTile))
         {
-            SwapTiles();
+            StartCoroutine(SwapTiles());
         }
-        startTile = null;
-        endTile = null;
     }
 
-    private void SwapTiles()
+    IEnumerator SwapTiles()
     {
         var StarPiece = Pieces[startTile.x, startTile.y];
         var EndPiece = Pieces[endTile.x, endTile.y];
@@ -107,6 +107,40 @@ public class Board : MonoBehaviour
 
         Pieces[startTile.x, startTile.y] = EndPiece;
         Pieces[endTile.x, endTile.y] = StarPiece;
+
+        yield return new WaitForSeconds(0.6f);
+
+        bool foundMatch = false;
+        var startMatches = GetMatchByPiece(startTile.x, startTile.y, 3);
+        var endMatches = GetMatchByPiece(endTile.x, endTile.y, 3);
+
+        startMatches.ForEach(piece =>
+        {
+            foundMatch = true;
+            Pieces[piece.x, piece.y] = null;
+            Destroy(piece.gameObject);
+        });
+
+        endMatches.ForEach(piece =>
+        {
+            foundMatch = true;
+            Pieces[piece.x, piece.y] = null;
+            Destroy(piece.gameObject);
+        });
+
+        if (!foundMatch)
+        {
+            StarPiece.Move(startTile.x, startTile.y);
+            EndPiece.Move(endTile.x, endTile.y);
+            Pieces[startTile.x, startTile.y] = StarPiece;
+            Pieces[endTile.x, endTile.y] = EndPiece;
+        }
+
+        startTile = null;
+        endTile = null;
+        swappingPieces = false;
+
+        yield return null;
     }
 
     public bool IsCloseTo(Tile start, Tile end)
@@ -114,16 +148,15 @@ public class Board : MonoBehaviour
         if (Math.Abs((start.x - end.x)) == 1 && start.y == end.y)
         {
             return true;
-        } 
-
-        if(Math.Abs((start.y - end.y)) == 1 && start.x == end.x)
+        }
+        if (Math.Abs((start.y - end.y)) == 1 && start.x == end.x)
         {
             return true;
         }
         return false;
     }
 
-    public List<Piece> GetMatchByDirection(int xpos, int ypos, Vector2 direction, int minPieces =3)
+    public List<Piece> GetMatchByDirection(int xpos, int ypos, Vector2 direction, int minPieces = 3)
     {
         List<Piece> matches = new List<Piece>();
         Piece startPiece = Pieces[xpos, ypos];
@@ -136,7 +169,7 @@ public class Board : MonoBehaviour
         for (int i = 1; i < maxVal; i++)
         {
             nextX = xpos + ((int)direction.x * i);
-            nextY = ypos * ((int)direction.y * i);
+            nextY = ypos + ((int)direction.y * i);
             if (nextX >= 0 && nextX < width && nextY >= 0 && nextY < height)
             {
                 var nextPiece = Pieces[nextX, nextY];
@@ -151,16 +184,17 @@ public class Board : MonoBehaviour
             }
         }
 
-            if (matches.Count >= minPieces)
-            {
-                return matches;
-            }
-          return null;
+        if (matches.Count >= minPieces)
+        {
+            return matches;
         }
+
+        return null;
+    }
 
     public List<Piece> GetMatchByPiece(int xpos, int ypos, int minPieces = 3)
     {
-        var upMatchs = GetMatchByDirection(xpos, ypos, new Vector2(0,1), 2);
+        var upMatchs = GetMatchByDirection(xpos, ypos, new Vector2(0, 1), 2);
         var downMatchs = GetMatchByDirection(xpos, ypos, new Vector2(0, -1), 2);
         var rightMatchs = GetMatchByDirection(xpos, ypos, new Vector2(1, 0), 2);
         var leftMatchs = GetMatchByDirection(xpos, ypos, new Vector2(-1, 0), 2);
@@ -175,21 +209,16 @@ public class Board : MonoBehaviour
 
         var foundMatches = new List<Piece>();
 
-        if (verticalMatches.Count>= minPieces)
+        if (verticalMatches.Count >= minPieces)
         {
             foundMatches = foundMatches.Union(verticalMatches).ToList();
-
         }
-        if (horizontalMatches.Count>= minPieces)
+        if (horizontalMatches.Count >= minPieces)
         {
             foundMatches = foundMatches.Union(horizontalMatches).ToList();
         }
 
         return foundMatches;
-
-
     }
 
-
-
-    }
+}
